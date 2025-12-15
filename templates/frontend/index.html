@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>uk events</title>
+    <!-- Load Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Lucide Icons for a modern look -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Load Google Font (Inter, matching config) -->
+    <style>
+        /* Apply the custom font and smooth transitions */
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 
+                        'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #1f2937; /* gray-800 */
+        }
+        /* Custom scroll behavior for the modal */
+        .modal-open {
+            overflow: hidden;
+        }
+    </style>
+    <script>
+        // --- 1. CONFIGURATION AND DATA (Updated with color-specific images) ---
+
+        const APP_CONFIG = {
+            PRIMARY_COLOR: 'bg-black-600',
+            PRIMARY_COLOR_HOVER: 'hover:bg-black-700',
+        };
+
+        // Tracks the currently active color for each product ID when the modal is open
+        let activeColor = {};
+
+        let products =[];
+
+        // --- 2. FIREBASE BOILERPLATE (Mandatory for environment) ---
+        // These global variables are provided by the canvas environment.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+        let db, auth;
+
+        async function initFirebase() {
+            if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
+                console.warn("Firebase configuration is missing. Skipping initialization.");
+                return;
+            }
+
+            const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+            const { getAuth, signInAnonymously, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+            const { getFirestore, setLogLevel } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+            
+            try {
+                // setLogLevel('Debug'); // Uncomment for detailed logs
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                if (typeof __initial_auth_token !== 'undefined') {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                    console.log("Firebase Auth: Signed in with custom token.");
+                } else {
+                    await signInAnonymously(auth);
+                    console.log("Firebase Auth: Signed in anonymously.");
+                }
+                
+            } catch (error) {
+                console.error("Firebase Initialization or Auth Error:", error);
+            }
+        }
+
+
+        // --- 3. HELPER FUNCTIONS ---
+        async function loadProducts() {
+            try {
+                const response = await fetch("http://127.0.0.1:8000/api/products/");
+                const data = await response.json();
+
+                products = data.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    category: item.category,
+                    description: item.description,
+                    price: `₹ ${item.price}`,
+                    image: item.image,
+                    colors: [],          // keep empty for now
+                    colorImages: {}      // avoid undefined errors
+                }));
+
+                renderProducts(products);
+            } catch (error) {
+                console.error("Error loading products:", error);
+            }
+        }
+        /**
+         * Maps color names to Tailwind utility classes.
+         */
+        const getColorClass = (colorName) => {
+            const normalized = colorName.toLowerCase().replace(/\s/g, ''); 
+            switch (normalized) {
+                case 'red': return 'bg-red-600';
+                case 'blue': return 'bg-blue-600';
+                case 'black': return 'bg-gray-900';
+                case 'white': return 'bg-white border border-gray-300';
+                case 'brown': return 'bg-amber-800';
+                case 'darkblue': return 'bg-blue-900';
+                case 'silver': return 'bg-gray-400';
+                case 'rosegold': return 'bg-pink-300';
+                case 'navy': return 'bg-indigo-900';
+                case 'gray':
+                case 'lightgray': return 'bg-gray-500';
+                case 'charcoal': return 'bg-gray-700';
+                case 'green':
+                case 'forestgreen': return 'bg-green-700';
+                case 'copper': return 'bg-amber-600';
+                case 'orange': return 'bg-orange-600';
+                case 'chrome': return 'bg-gray-200 border border-gray-400';
+                default: return 'bg-gray-700';
+            }
+        };
+
+        /**
+         * Generates the HTML for the color option dots for the PRODUCT CARD (non-interactive).
+         */
+        const createColorDotsHtml = (colors, isLarge = false) => {
+            return colors.map((color) => {
+                const size = isLarge ? 'w-5 h-5' : 'w-3 h-3';
+                const colorClass = getColorClass(color);
+                return `
+                    <span 
+                        title="${color}"
+                        class="${colorClass} ${size} rounded-full inline-block shadow-inner transition-transform duration-200 ${isLarge ? 'hover:scale-110' : ''}"
+                    ></span>
+                `;
+            }).join('');
+        };
+
+        /**
+         * Generates the HTML for the color option dots for the MODAL (interactive).
+         */
+        const createColorDotsHtmlForModal = (productId, colors) => {
+            // Set the default active color to the first one available
+            const defaultColor = colors[0];
+            
+            // Initialize or reset the active color tracker
+            activeColor[productId] = defaultColor; 
+
+            return colors.map((color) => {
+                const colorClass = getColorClass(color);
+                const isActive = color === defaultColor;
+                
+                // Add a unique ID and the onclick handler
+                return `
+                    <button 
+                        type="button"
+                        id="color-dot-${productId}-${color.toLowerCase().replace(/\s/g, '')}"
+                        title="${color}"
+                        onclick="changeColorImage(${productId}, '${color}')"
+                        class="${colorClass} w-8 h-8 rounded-full shadow-md transition-all duration-200 focus:outline-none 
+                                ${isActive ? 'ring-4 ring-offset-2 ring-blue-500' : 'hover:scale-110'}"
+                    ></button>
+                `;
+            }).join('');
+        };
+        
+        /**
+         * Function to change the main product image in the modal and update active state.
+         * This function is called when a color dot is clicked.
+         */
+        const changeColorImage = (productId, colorName) => {
+            const product = products.find(p => p.id === productId);
+            // Ensure product and colorImages exist
+            if (!product || !product.colorImages) return;
+
+            const imageElement = document.getElementById('modal-product-image');
+            if (!imageElement) return;
+
+            // 1. Update the image source: use color image or fall back to generic image
+            const newImageUrl = product.colorImages[colorName] || product.image;
+            imageElement.src = newImageUrl;
+            imageElement.alt = `${product.name} in ${colorName}`; // Update alt text
+
+            // 2. Update active color dot visual state
+            const oldColorName = activeColor[productId];
+            
+            // Only proceed if the color is actually changing
+            if (oldColorName === colorName) return; 
+
+            // Remove ring from old active dot
+            if (oldColorName) {
+                const oldDotId = `color-dot-${productId}-${oldColorName.toLowerCase().replace(/\s/g, '')}`;
+                const oldDot = document.getElementById(oldDotId);
+                if (oldDot) {
+                    oldDot.classList.remove('ring-4', 'ring-offset-2', 'ring-blue-500');
+                    oldDot.classList.add('hover:scale-110');
+                }
+            }
+
+            // Add ring to new active dot
+            const newDotId = `color-dot-${productId}-${colorName.toLowerCase().replace(/\s/g, '')}`;
+            const newDot = document.getElementById(newDotId);
+            if (newDot) {
+                newDot.classList.add('ring-4', 'ring-offset-2', 'ring-blue-500');
+                newDot.classList.remove('hover:scale-110');
+            }
+            
+            // 3. Update the tracking variable
+            activeColor[productId] = colorName;
+        };
+
+
+        /**
+         * Generates the HTML for a single product card.
+         * Image is visible on all screen sizes, description/colors hidden on mobile.
+         */
+        const createProductCardHtml = (product) => {
+            return `
+                <div
+                    class="bg-white rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 overflow-hidden cursor-pointer flex flex-col h-full"
+                    onclick="openModal(${product.id})"
+                >
+                    <!-- Image Container (Visible on ALL sizes) -->
+                    <div class="relative h-40 sm:h-48 md:h-52 overflow-hidden">
+                        <img
+                            src="${product.image}"
+                            alt="${product.name}"
+                            class="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                            onerror="this.onerror=null;this.src='https://placehold.co/400x300/e5e7eb/3b82f6?text=Image+Missing';"
+                        />
+                        <!-- Removed small screen price label since price is in the content block below -->
+                    </div>
+
+                    <!-- Content -->
+                    <div class="p-4 flex flex-col flex-grow">
+                        <div class="mb-2">
+                            <!-- Mobile view -->
+                            <div class="flex flex-col sm:hidden items-start">
+                                <h3 class="text-sm font-medium text-gray-800 leading-tight line-clamp-1">
+                                    ${product.name}
+                                </h3>
+                                <span class="text-sm font-semibold text-gray-700">
+                                    ${product.price}
+                                </span>
+                            </div>
+
+                            <!-- Desktop view (unchanged layout) -->
+                            <div class="hidden sm:flex justify-between items-start">
+                                <h3 class="text-lg  text-gray-800 line-clamp-1">
+                                    ${product.name}
+                                </h3>
+                                <span class="text-sm font-bold text-black-600 ml-3 flex-shrink-0">
+                                    ${product.price}
+                                </span>
+                            </div>
+                        </div>                      
+                        <!-- Description (Hidden on mobile, visible on sm and up) -->
+                        <p class="text-sm text-gray-500 mb-3 line-clamp-2 flex-grow hidden sm:block">${product.description}</p>
+                        
+                        <!-- Color Dots (Hidden on mobile, visible on sm and up) -->
+                        <div class="items-center justify-between mb-4 mt-2 hidden sm:flex">
+                            <span class="text-xs font-medium text-gray-700 mr-2">Colors:</span>
+                            <div class="flex space-x-1 sm:space-x-2">
+                                ${createColorDotsHtml(product.colors, false)}
+                                <p className="text-red-600 font-semibold">Currently not available</p>
+                            </div>
+                        </div>
+
+                        <!-- Quick View / Contact Button -->
+                        <button 
+                            class="w-full ${APP_CONFIG.PRIMARY_COLOR} ${APP_CONFIG.PRIMARY_COLOR_HOVER} text-black font-semibold py-2 rounded-lg transition duration-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 shadow-md"
+                            onclick="event.stopPropagation(); openModal(${product.id})"
+                        >
+                            Book Now
+                        </button>
+                    </div>
+                </div>
+            `;
+        };
+
+        /**
+         * Renders the filtered products into the main grid.
+         */
+        const renderProducts = (filteredProducts) => {
+            const grid = document.getElementById('product-grid');
+            if (!grid) return;
+
+            if (filteredProducts.length === 0) {
+                const searchTerm = document.getElementById('search-input').value;
+                grid.innerHTML = `
+                    <div class="col-span-full p-8 text-center text-xl text-gray-600 mt-6 bg-white rounded-xl shadow-lg border border-gray-100">
+                        No products matching "${searchTerm}" were found. Try a different search term!
+                    </div>
+                `;
+            } else {
+                grid.innerHTML = filteredProducts.map(createProductCardHtml).join('');
+            }
+        };
+
+        /**
+         * Filters the products based on the search input value.
+         */
+        const handleSearch = () => {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            
+            const filteredProducts = products.filter(product => {
+                const nameMatch = product.name.toLowerCase().includes(searchTerm);
+                const categoryMatch = product.category.toLowerCase().includes(searchTerm);
+                const colorMatch = product.colors.some(color => 
+                    color.toLowerCase().includes(searchTerm)
+                );
+                
+                return nameMatch || categoryMatch || colorMatch;
+            });
+
+            renderProducts(filteredProducts);
+        };
+
+        // --- 4. MODAL LOGIC ---
+
+        /**
+         * Opens the product detail modal.
+         */
+        const openModal = (productId) => {
+            const product = products.find(p => p.id === productId);
+            if (!product) return;
+
+            const modal = document.getElementById('product-modal');
+            const modalContent = document.getElementById('modal-content');
+
+            const emailSubject = encodeURIComponent(`Booking Inquiry for: ${product.name}`);
+            
+            let initialImageUrl = product.image;
+            let colorsHtml = '';
+            
+            if (product.colors && product.colors.length > 0) {
+                // Use the new interactive dots function for the modal
+                colorsHtml = createColorDotsHtmlForModal(product.id, product.colors);
+                
+                // Set the initial image to the first color, if specific images exist
+                if (product.colorImages && product.colorImages[product.colors[0]]) {
+                    initialImageUrl = product.colorImages[product.colors[0]];
+                    activeColor[product.id] = product.colors[0]; // Track initial color
+                }
+            } else {
+                 // Fallback: Use standard non-interactive dots if no color images logic is needed
+                colorsHtml = createColorDotsHtml(product.colors, true);
+            }
+
+            modalContent.innerHTML = `
+                <div class="flex flex-col md:flex-row gap-6 md:gap-8 p-6 pt-0">
+                    <!-- Image Section (Added ID for dynamic update) -->
+                    <!-- Image Section -->
+                    <div class="w-full md:w-5/12 flex justify-center items-center">
+                        <img 
+                            id="modal-product-image"
+                            src="${initialImageUrl}" 
+                            alt="${product.name}"
+                            class="max-w-full max-h-[340px] object-contain transition-all duration-300"
+                            onerror="this.onerror=null;this.src='https://placehold.co/500x350?text=Image+Missing';"
+                        />
+                    </div>
+
+                    <!-- Details Section -->
+                    <div class="w-full md:w-7/12 p-2 md:pl-2">
+                        <h2 class="text-xl font-semibold text-gray-900 mb-1">${product.name}</h2>
+                        <p class="text-base font-medium text-grey-700 mb-4">${product.price}</p>
+                        
+                        <h3 class="text-xl font-semibold text-gray-700 mt-4 mb-2"></h3>
+                        <p class="text-sm text-gray-600 leading-relaxed">${product.description}</p>
+                        
+                        <!-- Color Options (Now fully interactive) -->
+                        <div class="mb-8 p-3 bg-gray-50 rounded-lg">
+                            <span class="text-lg font-semibold text-gray-700 mr-4 block mb-2">Available Colors:</span>
+                            <div class="flex space-x-4">
+                                ${colorsHtml}
+                                <p className="text-red-600 font-semibold">Currently not available.</p>
+                            </div>
+                        </div>
+
+                        <!-- Booking and Contact Links -->
+                       <!-- Contact Actions -->
+                        <div class="mt-6 space-y-4">
+
+                            <!-- PRIMARY CTA : WhatsApp -->
+                            <a
+                                href="https://wa.me/919946003511?text=Hi%20I%20am%20interested%20in%20${encodeURIComponent(product.name)}%20priced%20at%20${encodeURIComponent(product.price)}.%0A%0AProduct%20Link:%20${encodeURIComponent(window.location.href)}%0A%0APlease%20share%20more%20details."
+                                target="_blank"
+                                class="flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-xl transition"
+                            >
+                                <!-- WhatsApp Icon -->
+                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path
+                                        d="M20.52 3.48A11.94 11.94 0 0012.02 0C5.39 0 0 5.37 0 12c0 2.11.55 4.17 1.6 5.98L0 24l6.17-1.62A11.95 11.94 0 0012.02 24C18.65 24 24 18.63 24 12c0-3.2-1.25-6.21-3.5-8.52z"
+                                    />
+                                </svg>
+                                Contact on WhatsApp
+                            </a>
+
+                            <!-- SECONDARY CTA : Email -->
+                            <a
+                                href="Ukafreedh@gmail.com?subject=Booking%20Inquiry%20-%20${encodeURIComponent(product.name)}&body=Hello,%0A%0AI%20am%20interested%20in%20${encodeURIComponent(product.name)}%20priced%20at%20${encodeURIComponent(product.price)}.%0A%0AProduct%20Link:%20${encodeURIComponent(window.location.href)}%0A%0APlease%20share%20more%20details."
+                                class="block text-center text-sm text-blue-600 hover:underline font-medium"
+                            >
+                                or contact via Email
+                            </a>
+
+                        </div>
+                        
+                        <p class="text-sm text-gray-500 mt-4 text-center">
+                            *Products are reserved only after direct contact confirmation.
+                        </p>
+                    </div>
+                </div>
+            `;
+            modal.classList.remove('hidden');
+            document.body.classList.add('modal-open');
+
+            // Add event listener to close modal on 'Escape' key
+            document.addEventListener('keydown', handleEscapeKey);
+        };
+
+        /**
+         * Closes the product detail modal.
+         */
+        const closeModal = () => {
+            const modal = document.getElementById('product-modal');
+            modal.classList.add('hidden');
+            document.body.classList.remove('modal-open');
+
+            // Remove 'Escape' key listener
+            document.removeEventListener('keydown', handleEscapeKey);
+        };
+
+        /**
+         * Handles the Escape key press to close the modal.
+         */
+        const handleEscapeKey = (event) => {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        };
+
+
+        // --- 5. ROUTING LOGIC (Page Switching) ---
+
+        const pageIds = ['home-page', 'products-page', 'services-page', 'contact-page'];
+
+        /**
+         * Renders the specified page content and updates the URL hash.
+         */
+        const renderPage = (pageId) => {
+            // Update URL hash for simple routing
+            window.location.hash = `#${pageId}`;
+
+            // Toggle visibility of content divs
+            pageIds.forEach(id => {
+                const page = document.getElementById(id);
+                if (page) {
+                    page.classList.add('hidden');
+                }
+            });
+
+            const targetPage = document.getElementById(pageId);
+            if (targetPage) {
+                targetPage.classList.remove('hidden');
+            }
+            
+            // Special handling for the Products page: re-render products on navigation
+            if (pageId === 'products-page') {
+                renderProducts(products);
+            }
+
+            // Close mobile menu if open
+            document.getElementById('mobile-menu').classList.add('hidden');
+            document.getElementById('menu-icon-open').classList.remove('hidden');
+            document.getElementById('menu-icon-close').classList.add('hidden');
+        };
+
+        /**
+         * Handles initial page load and hash changes.
+         */
+        const handleHashChange = () => {
+            const hash = window.location.hash.slice(1) || 'home-page';
+            if (pageIds.includes(hash)) {
+                renderPage(hash);
+            } else {
+                renderPage('home-page'); // Default to home if hash is invalid
+            }
+        };
+
+
+        // --- 6. INITIALIZATION ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initFirebase(); // Initialize Firebase boilerplate
+
+            // Set up search bar listener
+
+            const searchInput = document.getElementById('search-input');
+                if (searchInput) {
+                    searchInput.addEventListener('input', handleSearch);
+                }
+
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+
+    loadProducts(); 
+
+            // Hide the modal when clicking on the overlay background
+            const modal = document.getElementById('product-modal');
+            if(modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target.id === 'product-modal') {
+                        closeModal();
+                    }
+                });
+            }
+
+            // Initialize Lucide icons
+            lucide.createIcons();
+        });
+        let slideIndex = { birthday: 0, wedding: 0 };
+
+    function slideNext(type) {
+        const carousel = document.querySelector(`.${type}-carousel`);
+        slideIndex[type] = (slideIndex[type] + 1) % carousel.children.length;
+        carousel.style.transform = `translateX(-${slideIndex[type] * 100}%)`;
+    }
+
+    function slidePrev(type) {
+        const carousel = document.querySelector(`.${type}-carousel`);
+        slideIndex[type] = (slideIndex[type] - 1 + carousel.children.length) % carousel.children.length;
+        carousel.style.transform = `translateX(-${slideIndex[type] * 100}%)`;
+    }
+
+    setInterval(() => slideNext('birthday'), 4000);
+    setInterval(() => slideNext('wedding'), 5000);
+
+    // Swipe for carousel
+    function enableSwipe(className, type) {
+        const el = document.querySelector(`.${className}`);
+        let startX = 0;
+        el.addEventListener("touchstart", e => startX = e.touches[0].clientX);
+        el.addEventListener("touchend", e => {
+            const endX = e.changedTouches[0].clientX;
+            if (startX - endX > 50) slideNext(type);
+            if (endX - startX > 50) slidePrev(type);
+        });
+    }
+    enableSwipe("birthday-carousel", "birthday");
+    enableSwipe("wedding-carousel", "wedding");
+
+    // Fullscreen gallery
+        const gallery = {
+        birthday: [
+            "https://i.pinimg.com/1200x/9d/2e/91/9d2e919f8f0c99a2a3e3b7f7e3f92a55.jpg",
+            "https://i.pinimg.com/1200x/5a/20/81/5a2081e27b9c0f37be65094b9ce619c2.jpg",
+            "https://i.pinimg.com/1200x/c8/a5/ef/c8a5ef4c0509cbfdd3bb5df42944444b.jpg"
+        ],
+        wedding: [
+            "https://i.pinimg.com/1200x/97/8a/15/978a1553157b593e29ac5129dea01c4d.jpg",
+            "https://i.pinimg.com/1200x/13/1f/d8/131fd84b9a18eb6906e14ac225191a7f.jpg",
+            "https://i.pinimg.com/1200x/86/7c/59/867c59a06d41ff27e1c41365d5766bc5.jpg"
+        ]
+    };
+
+    let currentGallery = [];
+    let currentIndex = 0;
+
+    function openFullscreen(type, index) {
+        currentGallery = gallery[type];
+        currentIndex = index;
+
+        const viewer = document.getElementById("fullscreenViewer");
+        const image = document.getElementById("fullscreenImage");
+
+        image.src = currentGallery[currentIndex];
+        viewer.classList.remove("hidden");
+
+        document.body.style.overflow = "hidden";
+    }
+
+    function closeFullscreen() {
+        document.getElementById("fullscreenViewer").classList.add("hidden");
+        document.body.style.overflow = "";
+    }
+
+    function fullscreenNext() {
+        currentIndex = (currentIndex + 1) % currentGallery.length;
+        document.getElementById("fullscreenImage").src = currentGallery[currentIndex];
+    }
+
+    function fullscreenPrev() {
+        currentIndex = (currentIndex - 1 + currentGallery.length) % currentGallery.length;
+        document.getElementById("fullscreenImage").src = currentGallery[currentIndex];
+    }
+
+    /* Swipe Support */
+    let startX = 0;
+    const viewer = document.getElementById("fullscreenViewer");
+
+    viewer.addEventListener("touchstart", e => {
+        startX = e.touches[0].clientX;
+    });
+
+    viewer.addEventListener("touchend", e => {
+        const endX = e.changedTouches[0].clientX;
+        if (startX - endX > 60) fullscreenNext();
+        if (endX - startX > 60) fullscreenPrev();
+    });
+
+    /* Close on background click */
+    viewer.addEventListener("click", e => {
+        if (e.target.id === "fullscreenViewer") {
+            closeFullscreen();
+        }
+    });
+
+    /* ESC key support */
+    document.addEventListener("keydown", e => {
+        if (e.key === "Escape") closeFullscreen();
+    });
+    </script>
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- --- NAVBAR --- -->
+    <nav class="bg-white shadow-md sticky top-0 z-40 border-b border-gray-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo/Brand -->
+                <a href="home-page" onclick="renderPage('home-page')" class="flex-shrink-0 text-2xl font-extrabold text-gray-900 flex items-center tracking-tight">
+                    <i data-lucide="shopping-bag" class="w-7 h-7 mr-2 text-blue-600"></i>
+                    UK<span class="text-orange-600">Events</span>
+                </a>
+
+                <!-- Desktop Menu -->
+                <div class="hidden md:flex space-x-8">
+                    <a href="#home-page" onclick="renderPage('home-page')" class="text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out font-medium py-1 px-2 border-b-2 border-transparent hover:border-blue-600">Home</a>
+                    <a href="#products-page" onclick="renderPage('products-page')" class="text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out font-medium py-1 px-2 border-b-2 border-transparent hover:border-blue-600">Products</a>
+                    <a href="#services-page" onclick="renderPage('services-page')" class="text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out font-medium py-1 px-2 border-b-2 border-transparent hover:border-blue-600">Services</a>
+                    <a href="#contact-page" onclick="renderPage('contact-page')" class="text-gray-700 hover:text-blue-600 transition duration-150 ease-in-out font-medium py-1 px-2 border-b-2 border-transparent hover:border-blue-600">Contact</a>
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <div class="md:hidden">
+                    <button
+                        onclick="document.getElementById('mobile-menu').classList.toggle('hidden'); document.getElementById('menu-icon-open').classList.toggle('hidden'); document.getElementById('menu-icon-close').classList.toggle('hidden');"
+                        class="inline-flex items-center justify-center p-2 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none transition"
+                    >
+                        <i data-lucide="menu" id="menu-icon-open" class="h-6 w-6"></i>
+                        <i data-lucide="x" id="menu-icon-close" class="h-6 w-6 hidden"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu Panel -->
+        <div id="mobile-menu" class="md:hidden hidden transition-all duration-300 ease-in-out border-t border-gray-100">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="#home-page" onclick="renderPage('home-page')" class="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-blue-600 hover:text-white transition">Home</a>
+                <a href="#products-page" onclick="renderPage('products-page')" class="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-blue-600 hover:text-white transition">Products</a>
+                <a href="#services-page" onclick="renderPage('services-page')" class="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-blue-600 hover:text-white transition">Services</a>
+                <a href="#contact-page" onclick="renderPage('contact-page')" class="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-blue-600 hover:text-white transition">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- --- MAIN CONTENT AREA --- -->
+    <main class="flex-grow">
+        
+        <!-- HOME PAGE -->
+        <div id="home-page" class="hidden bg-white min-h-[calc(100vh-160px)]">
+            <div class="bg-gray-50 py-20 sm:py-32 text-center border-b border-gray-100">
+                <div class="max-w-4xl mx-auto px-4">
+                    <h1 class="text-5xl sm:text-7xl font-extrabold text-gray-900 mb-4 tracking-tight">
+                        Good <span class="text-blue-600">Quality</span>. Effortless Booking.
+                    </h1>
+                    <p class="text-lg sm:text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
+                        Explore our event products  of for any occassions. Start your booking inquiry now.
+                    </p>
+                    <a 
+                        href="#products-page" onclick="renderPage('products-page')"
+                        class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-10 rounded-xl text-lg transition duration-300 shadow-xl hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-blue-600 focus:ring-opacity-50 transform hover:scale-105"
+                    >
+                        View Products
+                    </a>
+                    <!-- OUR WORKS SECTION WITH CAROUSEL -->
+                    <div class="py-16 border-b border-gray-100">
+                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+                            <!-- Heading -->
+                            <div class="text-center mb-12">
+                                <h2 class="text-4xl font-extrabold text-gray-900 mb-3">
+                                    Our <span class="text-blue-600">Focused</span> <span class="text-black-600">Works</span>
+                                </h2>
+                                <p class="text-gray-600 text-lg">
+                                    A glimpse of our birthday celebrations and wedding stage decorations
+                                </p>
+                            </div>
+                            <br>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+
+                                <!-- 🎂 Birthday Events -->
+                                <div class="bg-gray-50 rounded-2xl shadow-lg overflow-hidden">
+                                    <div class="relative overflow-hidden">
+                                        <div class="birthday-carousel flex transition-transform duration-700">
+                                            <img src="assets/IMG_9840.JPG"
+                                                class="w-full h-48 sm:h-56 md:h-64 object-cover flex-shrink-0 cursor-pointer"
+                                                onclick="openFullscreen('birthday',0)">
+                                            <img src="assets/IMG_9843.JPG"
+                                                class="w-full h-48 sm:h-56 md:h-64 object-cover flex-shrink-0 cursor-pointer"
+                                                onclick="openFullscreen('birthday',1)">
+                                            <img src="assets/IMG_9843.JPG"
+                                                class="w-full h-48 sm:h-56 md:h-64 object-cover flex-shrink-0 cursor-pointer"
+                                                onclick="openFullscreen('birthday',2)">
+                                        </div>
+
+                                        <button onclick="slidePrev('birthday')" class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full">❮</button>
+                                        <button onclick="slideNext('birthday')" class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full">❯</button>
+                                    </div>
+
+                                    <div class="p-6 text-center">
+                                        <h3 class="text-2xl font-bold text-gray-800 mb-2">Birthday Events</h3>
+                                        <p class="text-gray-600 text-sm">Creative balloon themes, custom backdrops, and joyful birthday setups for all ages.</p>
+                                    </div>
+                                </div>
+
+                                <!-- 💍 Wedding Stage -->
+                                <div class="bg-gray-50 rounded-2xl shadow-lg overflow-hidden">
+                                    <div class="relative overflow-hidden">
+                                        <div class="wedding-carousel flex transition-transform duration-700">
+                                            <img src="assets/IMG_9842.JPG"
+                                                class="w-full h-48 sm:h-56 md:h-64 object-cover flex-shrink-0 cursor-pointer"
+                                                onclick="openFullscreen('wedding',0)">
+                                            <img src="assets/IMG_9839.JPG"
+                                                class="w-full h-48 sm:h-56 md:h-64 object-cover flex-shrink-0 cursor-pointer"
+                                                onclick="openFullscreen('wedding',1)">
+                                        </div>
+
+                                        <button onclick="slidePrev('wedding')" class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full">❮</button>
+                                        <button onclick="slideNext('wedding')" class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full">❯</button>
+                                    </div>
+
+                                    <div class="p-6 text-center">
+                                        <h3 class="text-2xl font-bold text-gray-800 mb-2">Wedding Stage Works</h3>
+                                        <p class="text-gray-600 text-sm">Elegant wedding stages with premium decor, lighting, and floral arrangements.</p>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="max-w-7xl mx-auto py-16 px-4 sm:px-6 lg:px-8">
+                <h2 class="text-3xl font-bold text-gray-800 text-center mb-12">Why Choose Us?</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="text-center p-6 bg-white rounded-xl shadow-lg border border-gray-100">
+                        <i data-lucide="award" class="w-10 h-10 text-blue-600 mx-auto mb-4"></i>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">Premium Selection</h3>
+                        <p class="text-gray-600">Only the highest rated and most stylish products make it into our exclusive catalog.</p>
+                    </div>
+                    <div class="text-center p-6 bg-white rounded-xl shadow-lg border border-gray-100">
+                        <i data-lucide="trending-up" class="w-10 h-10 text-blue-600 mx-auto mb-4"></i>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">Modern Design</h3>
+                        <p class="text-gray-600">Our products combine aesthetic excellence with cutting-edge functionality.</p>
+                    </div>
+                    <div class="text-center p-6 bg-white rounded-xl shadow-lg border border-gray-100">
+                        <i data-lucide="zap" class="w-10 h-10 text-blue-600 mx-auto mb-4"></i>
+                        <h3 class="text-xl font-semibold text-gray-800 mb-2">Personalized Service</h3>
+                        <p class="text-gray-600">All bookings are handled one-on-one for a direct and tailored experience.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PRODUCTS PAGE (Main Dynamic Content) -->
+        <div id="products-page" class="hidden min-h-screen bg-gray-50">
+            <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+                
+                <h1 class="text-4xl font-extrabold text-gray-900 mb-6 text-center">Explore Our Products</h1>
+                <p class='text-center text-gray-600 mb-10'>Browse our responsive high-quality items.</p>
+                
+                <!-- Search Bar -->
+                <div class="w-full max-w-3xl mx-auto mb-10 p-2">
+                    <div class="relative">
+                        <input
+                            type="text"
+                            id="search-input"
+                            placeholder="Search products by name, category, or color..."
+                            class="w-full py-3 pl-14 pr-4 text-base border-2 border-gray-200 rounded-full shadow-lg focus:outline-none focus:ring-4 focus:ring-blue-600 focus:ring-opacity-20 focus:border-blue-600 transition duration-200"
+                        />
+                        <i data-lucide="search" class="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5"></i>
+                    </div>
+                </div>
+
+                <!-- Product Grid (Dynamic Content) -->
+                <div id="product-grid" class="grid grid-cols-2 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
+                    <!-- Products will be injected here by renderProducts() -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- SERVICES PAGE -->
+        <div id="services-page" class="hidden min-h-[calc(100vh-160px)] bg-white py-12">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <h1 class="text-4xl font-extrabold text-gray-900 mb-6 text-center">Our Specialized Services</h1>
+                <p class="text-center text-lg text-gray-600 mb-12 max-w-4xl mx-auto">
+                    We offer comprehensive services designed to complement your product purchase, ensuring a smooth, quality-controlled, and reliable experience from inquiry to delivery.
+                </p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition duration-300 transform hover:-translate-y-0.5">
+                        <i data-lucide="" class="w-10 h-10 text-blue-600 mx-auto mb-4"></i>
+                        <h2 class="text-xl font-bold text-gray-800 mb-3 text-center">Event Management</h2>
+                        <p class="text-gray-600 text-sm text-center">We deliver end-to-end event planning, flawless coordination, and professional management so your event is successful, seamless, and stress-free.</p>
+                    </div>
+                    <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition duration-300 transform hover:-translate-y-0.5">
+                        <i data-lucide="home" class="w-10 h-10 text-green-500 mx-auto mb-4"></i>
+                        <h2 class="text-xl font-bold text-gray-800 mb-3 text-center">Stage Decorations</h2>
+                        <p class="text-gray-600 text-sm text-center">We provide better stage work for wedding , Birthday and other events also</p>
+                    </div>
+                    <div class="bg-gray-50 p-6 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition duration-300 transform hover:-translate-y-0.5">
+                        <i data-lucide="truck" class="w-10 h-10 text-yellow-600 mx-auto mb-4"></i>
+                        <h2 class="text-xl font-bold text-gray-800 mb-3 text-center">Catering Services</h2>
+                        <p class="text-gray-600 text-sm text-center">We Provide Healthy and Tasty Foods for any Events</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONTACT PAGE -->
+        <div id="contact-page" class="hidden min-h-[calc(100vh-160px)] bg-white py-12">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                <h1 class="text-4xl font-extrabold text-gray-900 mb-6 text-center">Get in Touch</h1>
+                <p class="text-center text-lg text-gray-600 mb-12">
+                    Ready to book an item? Have a specific inquiry? We're here to help you directly.
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <!-- Contact Details -->
+                    <div class="space-y-6">
+                        <h2 class="text-2xl font-bold text-gray-800 border-b pb-3 mb-4">Direct Contact Methods</h2>
+                        
+                        <div class="flex items-start space-x-4 bg-gray-50 p-5 rounded-xl shadow-md">
+                            <i data-lucide="mail" class="w-6 h-6 text-blue-600 mt-1 flex-shrink-0"></i>
+                            <div>
+                                <p class="font-semibold text-gray-700">Booking & Inquiries</p>
+                                <a href="Ukafreedh@gmail.com" class="text-sm text-blue-600 hover:text-blue-700 transition duration-200 underline">Ukafreedh@gmail.com</a>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start space-x-4 bg-gray-50 p-5 rounded-xl shadow-md">
+                            <i data-lucide="message-circle" class="w-6 h-6 text-green-500 mt-1 flex-shrink-0"></i>
+                            <div>
+                                <p class="font-semibold text-gray-700">Live Chat (WhatsApp)</p>
+                                <a href="https://wa.me/919946003511" target="_blank" rel="noopener noreferrer" class="text-sm text-green-500 hover:text-green-600 transition duration-200 underline">Start a Conversation</a>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start space-x-4 bg-gray-50 p-5 rounded-xl shadow-md">
+                            <i data-lucide="phone" class="w-6 h-6 text-gray-600 mt-1 flex-shrink-0"></i>
+                            <div>
+                                <p class="font-semibold text-gray-700">Phone Support</p>
+                                <p class="text-sm text-gray-600">+91-9946003511</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Contact Form Placeholder
+                    <div class="bg-gray-100 p-8 rounded-2xl shadow-2xl">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">Send Us a Message</h2>
+                        <form class="space-y-5">
+                            <input type="text" placeholder="Your Full Name" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition" required />
+                            <input type="email" placeholder="Your Email Address" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition" required />
+                            <textarea placeholder="Your Inquiry" rows="5" class="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition" required></textarea>
+                            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition duration-300 shadow-lg">
+                                Submit Inquiry
+                            </button>
+                        </form>
+                    </div> -->
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- --- FOOTER --- -->
+    <footer class="bg-gray-800 text-white mt-12 shadow-inner">
+        <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-8 border-b border-gray-700 pb-8 mb-8">
+                <div>
+                    <h3 class="text-lg font-semibold mb-3 text-blue-400">Uk Events</h3>
+                    <ul class="space-y-2 text-sm text-gray-400">
+                        <li><a href="#home" onclick="renderPage('home')" class="hover:text-white transition">Home</a></li>
+                        <li><a href="#products-page" onclick="renderPage('products-page')" class="hover:text-white transition">Catalog</a></li>
+                        <li><a href="#services-page" onclick="renderPage('services-page')" class="hover:text-white transition">Services</a></li>
+                    </ul>
+                </div>
+                <div class="col-span-2 md:col-span-2">
+                    <h3 class="text-lg font-semibold mb-3 text-blue-400">Booking & Contact</h3>
+                    <p class="text-sm text-gray-400 mb-4">
+                        Products are reserved via direct contact only. Get in touch:
+                    </p>
+                    <div class="flex flex-wrap gap-4">
+                        <a 
+                            href="Ukafreedh@gmail.com" 
+                            class="flex items-center bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition shadow-md"
+                        >
+                            <i data-lucide="mail" class="w-4 h-4 mr-2"></i> Email Booking
+                        </a>
+                        <a 
+                            href="https://wa.me/+919946003511" target="_blank" rel="noopener noreferrer"
+                            class="flex items-center bg-green-500 hover:bg-green-600 text-white text-sm font-medium py-2 px-4 rounded-lg transition shadow-md"
+                        >
+                            <i data-lucide="message-circle" class="w-4 h-4 mr-2"></i> WhatsApp Chat
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center">
+                <p class="text-xs text-gray-500">
+                    © 2024 UK Events E-Commerce. All rights reserved. 
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- --- PRODUCT MODAL (Hidden by Default) --- -->
+    <div id="product-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black bg-opacity-70 p-4 transition-opacity duration-300 backdrop-blur-sm">
+      <div 
+        class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto transform transition-transform duration-300 scale-100"
+        onclick="event.stopPropagation()"
+      >
+        <div class="flex justify-end p-3 sticky top-0 bg-white rounded-t-2xl z-10">
+          <button onclick="closeModal()" class="text-gray-400 hover:text-gray-700 transition p-1 rounded-full hover:bg-gray-100">
+            <i data-lucide="x" class="w-6 h-6"></i>
+          </button>
+        </div>
+
+        <!-- Modal Content (Injected by openModal) -->
+        <div id="modal-content">
+            <!-- Content will be injected here -->
+        </div>
+      </div>
+    </div>
+    <!-- FULLSCREEN IMAGE VIEWER (FIXED) -->
+    <div id="fullscreenViewer"
+        class="fixed inset-0 z-[9999] hidden bg-black bg-opacity-95 flex items-center justify-center">
+
+        <!-- Close Button -->
+        <button onclick="closeFullscreen()"
+            class="absolute top-4 right-4 text-white text-3xl font-bold z-[10000]">
+            ✕
+        </button>
+
+        <!-- Image -->
+        <img id="fullscreenImage"
+            class="max-w-[95vw] max-h-[95vh] object-contain select-none">
+
+        <!-- Navigation -->
+        <button onclick="fullscreenPrev()"
+            class="absolute left-3 md:left-6 text-white text-4xl z-[10000]">❮</button>
+
+        <button onclick="fullscreenNext()"
+            class="absolute right-3 md:right-6 text-white text-4xl z-[10000]">❯</button>
+    </div>
+
+</body>
+</html>

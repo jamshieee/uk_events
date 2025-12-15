@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Dashboard | UK Events</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+<nav class="bg-white shadow px-6 py-4 flex justify-between items-center">
+  <h1 class="text-xl font-bold">UK Events Admin</h1>
+  <a href="{% url 'admin-logout' %}" class="text-red-600 font-medium">
+    Logout
+  </a>
+</nav>
+
+<div class="max-w-6xl mx-auto p-6">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+    <div class="bg-white p-6 rounded-xl shadow">
+      <h3 class="text-lg font-semibold">Products</h3>
+      <p class="text-gray-500 text-sm mt-2">Manage all products</p>
+      <a href="/api/control/products/" class="inline-block mt-4 text-blue-600 font-semibold">
+        Manage →
+      </a>
+    </div>
+
+    <div class="bg-white p-6 rounded-xl shadow">
+      <h3 class="text-lg font-semibold">Bookings</h3>
+      <p class="text-gray-500 text-sm mt-2">Coming soon</p>
+    </div>
+
+    <div class="bg-white p-6 rounded-xl shadow">
+      <h3 class="text-lg font-semibold">Settings</h3>
+      <p class="text-gray-500 text-sm mt-2">Admin configuration</p>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

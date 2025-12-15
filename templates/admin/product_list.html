@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Manage Products | Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+<nav class="bg-white shadow px-6 py-4 flex justify-between">
+  <h1 class="text-xl font-bold">Product Management</h1>
+  <div>
+    <a href="{% url 'admin-dashboard' %}" class="mr-4 text-gray-600">Dashboard</a>
+    <a href="{% url 'admin-logout' %}" class="text-red-600">Logout</a>
+  </div>
+</nav>
+
+<div class="max-w-7xl mx-auto p-6">
+
+  <div class="flex justify-end mb-4">
+    <a href="{% url 'admin-product-add' %}"
+       class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg">
+      + Add Product
+    </a>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+
+    {% for product in products %}
+    <div class="bg-white rounded-xl shadow overflow-hidden">
+      <img src="{{ product.image.url }}" class="h-40 w-full object-cover">
+      <div class="p-4">
+        <h3 class="font-semibold">{{ product.name }}</h3>
+        <p class="text-sm text-gray-500">{{ product.category }}</p>
+        <p class="font-bold mt-1">₹ {{ product.price }}</p>
+
+        <a href="{% url 'admin-product-delete' product.id %}"
+           onclick="return confirm('Delete this product?')"
+           class="block mt-3 text-sm text-red-600 font-semibold">
+          Delete
+        </a>
+      </div>
+    </div>
+    {% empty %}
+      <p>No products added yet.</p>
+    {% endfor %}
+
+  </div>
+</div>
+
+</body>
+</html>
