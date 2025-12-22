@@ -4,12 +4,14 @@ from django.contrib.auth.decorators import login_required
 from .models import Product
 from django.db.models import Q
 from .serializers import ProductSerializer
+from rest_framework.permissions import AllowAny
 import cloudinary.uploader
 
 
 class ProductListAPIView(ListAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+    permission_classes = [AllowAny]
 
 
 @login_required(login_url='admin-login')
