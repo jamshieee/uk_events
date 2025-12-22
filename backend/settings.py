@@ -32,7 +32,7 @@ DEBUG = os.getenv("DJANGO_DEBUG", "False") == "True"
 ALLOWED_HOSTS = [
     '127.0.0.1',
     'localhost',
-    'uk-events.onrender.com',
+    'ukevents.onrender.com',
 ]
 
 
@@ -72,7 +72,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
     'http://localhost:8000',
-    'https://uk-events.onrender.com',
+    'https://ukevents.onrender.com',
 ]
 
 TEMPLATES = [
