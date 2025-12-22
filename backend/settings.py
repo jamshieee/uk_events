@@ -28,7 +28,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 DEBUG = os.getenv("DJANGO_DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = [
-    "ukevents.onrender.com",
+    "uk-events.onrender.com",
     "localhost",
     "127.0.0.1",
 ]
