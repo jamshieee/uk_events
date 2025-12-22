@@ -27,23 +27,23 @@
   <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
 
     {% for product in products %}
-    <div class="bg-white rounded-xl shadow overflow-hidden">
+  <div class="bg-white rounded-xl shadow overflow-hidden">
+    {% if product.image %}
       <img src="{{ product.image.url }}" class="h-40 w-full object-cover">
-      <div class="p-4">
-        <h3 class="font-semibold">{{ product.name }}</h3>
-        <p class="text-sm text-gray-500">{{ product.category }}</p>
-        <p class="font-bold mt-1">₹ {{ product.price }}</p>
-
-        <a href="{% url 'admin-product-delete' product.id %}"
-           onclick="return confirm('Delete this product?')"
-           class="block mt-3 text-sm text-red-600 font-semibold">
-          Delete
-        </a>
+    {% else %}
+      <div class="h-40 bg-gray-200 flex items-center justify-center text-gray-500">
+        No Image
       </div>
+    {% endif %}
+
+    <div class="p-4">
+      <h3 class="font-semibold">{{ product.name }}</h3>
+      <p class="text-sm text-gray-500">{{ product.category }}</p>
+      <p class="font-bold mt-2">₹{{ product.price }}</p>
     </div>
-    {% empty %}
-      <p>No products added yet.</p>
-    {% endfor %}
+  </div>
+{% endfor %}
+
 
   </div>
 </div>
