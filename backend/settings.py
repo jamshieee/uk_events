@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv()
 import cloudinary
 import os
 
@@ -28,9 +30,9 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 DEBUG = os.getenv("DJANGO_DEBUG", "False") == "True"
 
 ALLOWED_HOSTS = [
-    "uk-events.onrender.com",
-    "localhost",
-    "127.0.0.1",
+    '127.0.0.1',
+    'localhost',
+    'uk-events.onrender.com',
 ]
 
 
@@ -68,7 +70,9 @@ ROOT_URLCONF = 'backend.urls'
 CORS_ALLOW_ALL_ORIGINS = True
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://ukevents.onrender.com",
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+    'https://uk-events.onrender.com',
 ]
 
 TEMPLATES = [
