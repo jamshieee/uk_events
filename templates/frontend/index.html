@@ -219,6 +219,9 @@
             // 3. Update the tracking variable
             activeColor[productId] = colorName;
         };
+        function goToProduct(productId) {
+            window.location.href = `/products/${productId}/`;
+        }
 
 
         /**
@@ -229,7 +232,7 @@
             return `
                 <div
                     class="bg-white rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 overflow-hidden cursor-pointer flex flex-col h-full"
-                    onclick="openModal(${product.id})"
+                    onclick="goToProduct(${product.id})"
                 >
                     <!-- Image Container (Visible on ALL sizes) -->
                     <div class="relative h-40 sm:h-48 md:h-52 overflow-hidden">
@@ -280,7 +283,7 @@
                         <!-- Quick View / Contact Button -->
                         <button 
                             class="w-full ${APP_CONFIG.PRIMARY_COLOR} ${APP_CONFIG.PRIMARY_COLOR_HOVER} text-black font-semibold py-2 rounded-lg transition duration-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 shadow-md"
-                            onclick="event.stopPropagation(); openModal(${product.id})"
+                            onclick="event.stopPropagation(); goToProduct(${product.id})"
                         >
                             Book Now
                         </button>

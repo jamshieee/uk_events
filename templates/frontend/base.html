@@ -1,0 +1,42 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}UK Events{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont;
+            color: #1f2937;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col bg-gray-50">
+
+    <!-- ✅ NAVBAR -->
+    {% include "frontend/navbar.html" %}
+
+    <!-- ✅ PAGE CONTENT -->
+    <main class="flex-grow">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- ✅ FOOTER -->
+    {% include "frontend/footer.html" %}
+
+    <script>
+        lucide.createIcons();
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -18,13 +18,14 @@ from django.contrib import admin
 from django.urls import path,include
 from django.conf import settings
 from django.conf.urls.static import static
-from .views import frontend_home
+from .views import frontend_home, product_detail
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('products.urls')),
     path('control/', include('accounts.urls')),
     path('', frontend_home, name='frontend-home'),
+    path('products/<int:id>/', product_detail, name='product-detail'),
 ]
 
 if settings.DEBUG:

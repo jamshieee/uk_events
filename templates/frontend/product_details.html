@@ -1,0 +1,20 @@
+{% extends "frontend/base.html" %}
+{% load static %}
+
+{% block title %}Product Details | UK Events{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-16 px-4 min-h-[70vh]">
+
+    <div id="product-detail"
+         data-product-id="{{ product_id }}"
+         class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <!-- Product content injected by JS -->
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'frontend/js/product_details.js' %}"></script>
+{% endblock %}

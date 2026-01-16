@@ -1,7 +1,7 @@
-from rest_framework.generics import ListAPIView
+from rest_framework.generics import ListAPIView,RetrieveAPIView
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from .models import Product
+from .models import Product, ProductImage
 from django.db.models import Q
 from .serializers import ProductSerializer
 from rest_framework.permissions import AllowAny
@@ -13,6 +13,10 @@ class ProductListAPIView(ListAPIView):
     serializer_class = ProductSerializer
     permission_classes = [AllowAny]
 
+class ProductDetailAPIView(RetrieveAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    permission_classes = [AllowAny]
 
 @login_required(login_url='admin-login')
 def admin_product_list(request):
@@ -35,13 +39,21 @@ def admin_product_list(request):
 @login_required(login_url='admin-login')
 def admin_product_create(request):
     if request.method == "POST":
-        Product.objects.create(
+        product = Product.objects.create(
             name=request.POST.get('name'),
             category=request.POST.get('category'),
             description=request.POST.get('description'),
             price=request.POST.get('price'),
             image=request.FILES.get('image')
         )
+
+        # ✅ SAVE GALLERY IMAGES
+        for img in request.FILES.getlist('gallery_images'):
+            ProductImage.objects.create(
+                product=product,
+                image=img
+            )
+
         return redirect('admin-products')
 
     return render(request, 'admin/product_form.html')
@@ -51,11 +63,17 @@ def admin_product_create(request):
 def admin_product_delete(request, pk):
     product = get_object_or_404(Product, pk=pk)
 
+    # Delete main image
     if product.image:
         cloudinary.uploader.destroy(product.image.public_id)
 
+    # ✅ Delete gallery images
+    for img in product.gallery.all():
+        cloudinary.uploader.destroy(img.image.public_id)
+
     product.delete()
     return redirect('admin-products')
+
 
 @login_required(login_url='admin-login')
 def admin_product_edit(request, pk):
@@ -68,13 +86,19 @@ def admin_product_edit(request, pk):
         product.price = request.POST.get('price')
 
         if request.FILES.get('image'):
-            # delete old image from Cloudinary
             if product.image:
                 cloudinary.uploader.destroy(product.image.public_id)
-
             product.image = request.FILES.get('image')
 
         product.save()
+
+        # ✅ ADD NEW GALLERY IMAGES (does not delete old ones)
+        for img in request.FILES.getlist('gallery_images'):
+            ProductImage.objects.create(
+                product=product,
+                image=img
+            )
+
         return redirect('admin-products')
 
     return render(request, 'admin/product_form.html', {

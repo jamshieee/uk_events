@@ -1,0 +1,40 @@
+<nav class="bg-white shadow-md sticky top-0 z-50 border-b border-gray-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+
+            <!-- Logo -->
+            <a href="/" class="flex items-center text-2xl font-extrabold text-gray-900">
+                <i data-lucide="shopping-bag" class="w-7 h-7 mr-2 text-blue-600"></i>
+                UK<span class="text-orange-600">Events</span>
+            </a>
+
+            <!-- Desktop Menu -->
+            <div class="hidden md:flex space-x-8">
+                <a href="/" class="text-gray-700 hover:text-blue-600 font-medium">Home</a>
+                <a href="/#products-page" class="text-gray-700 hover:text-blue-600 font-medium">Products</a>
+                <a href="/#services-page" class="text-gray-700 hover:text-blue-600 font-medium">Services</a>
+                <a href="/#contact-page" class="text-gray-700 hover:text-blue-600 font-medium">Contact</a>
+            </div>
+
+            <!-- Mobile Menu Button -->
+            <div class="md:hidden">
+                <button
+                    onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
+                    class="p-2 rounded-md text-gray-500 hover:bg-gray-100"
+                >
+                    <i data-lucide="menu" class="w-6 h-6"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Menu -->
+    <div id="mobile-menu" class="md:hidden hidden border-t border-gray-100">
+        <div class="px-4 py-3 space-y-2">
+            <a href="/" class="block text-gray-700 hover:text-blue-600">Home</a>
+            <a href="/#products-page" class="block text-gray-700 hover:text-blue-600">Products</a>
+            <a href="/#services-page" class="block text-gray-700 hover:text-blue-600">Services</a>
+            <a href="/#contact-page" class="block text-gray-700 hover:text-blue-600">Contact</a>
+        </div>
+    </div>
+</nav>
